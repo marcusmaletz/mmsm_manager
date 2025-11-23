@@ -1,6 +1,6 @@
 import React, { useState, KeyboardEvent } from 'react';
-import { BriefingData, Persona } from '../types';
-import { Sparkles, X, User } from 'lucide-react';
+import { BriefingData, Persona, UserProfile } from '../types';
+import { Sparkles, X, User, Edit2, AlertCircle } from 'lucide-react';
 import { TONE_SUGGESTIONS } from '../services/defaults';
 
 interface InputFormProps {
@@ -8,9 +8,10 @@ interface InputFormProps {
   isLoading: boolean;
   personas: Persona[];
   onOpenSettings: () => void;
+  userProfile: UserProfile;
 }
 
-export const InputForm: React.FC<InputFormProps> = ({ onSubmit, isLoading, personas, onOpenSettings }) => {
+export const InputForm: React.FC<InputFormProps> = ({ onSubmit, isLoading, personas, onOpenSettings, userProfile }) => {
   const [formData, setFormData] = useState<BriefingData>({
     topic: '',
     url: '',
@@ -61,13 +62,36 @@ export const InputForm: React.FC<InputFormProps> = ({ onSubmit, isLoading, perso
     onSubmit(formData);
   };
 
+  const isProfileEmpty = !userProfile.name && !userProfile.business;
+
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-8">
-      <div className="flex items-center space-x-2 mb-6">
-        <div className="p-2 bg-indigo-100 rounded-lg">
-          <Sparkles className="w-5 h-5 text-indigo-600" />
-        </div>
-        <h2 className="text-xl font-bold text-slate-800">Neues Content Briefing</h2>
+      
+      {/* Identity / Profile Header */}
+      <div className="flex justify-between items-start mb-6 pb-6 border-b border-slate-100">
+          <div className="flex items-center space-x-2">
+            <div className="p-2 bg-indigo-100 rounded-lg">
+              <Sparkles className="w-5 h-5 text-indigo-600" />
+            </div>
+            <h2 className="text-xl font-bold text-slate-800">Neues Content Briefing</h2>
+          </div>
+
+          {/* User Profile Quick Access */}
+          <div 
+            onClick={onOpenSettings}
+            className={`flex items-center gap-3 px-4 py-2 rounded-lg border cursor-pointer transition-all ${isProfileEmpty ? 'bg-orange-50 border-orange-200 hover:bg-orange-100' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'}`}
+          >
+              <div className={`p-1.5 rounded-full ${isProfileEmpty ? 'bg-orange-200 text-orange-700' : 'bg-indigo-100 text-indigo-600'}`}>
+                  {isProfileEmpty ? <AlertCircle className="w-4 h-4" /> : <User className="w-4 h-4" />}
+              </div>
+              <div className="text-left">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Verfasser-Profil</p>
+                  <p className={`text-sm font-semibold truncate max-w-[150px] ${isProfileEmpty ? 'text-orange-700' : 'text-slate-800'}`}>
+                      {isProfileEmpty ? 'Profil fehlt!' : (userProfile.name || 'Unbenannt')}
+                  </p>
+              </div>
+              <Edit2 className="w-3.5 h-3.5 text-slate-400 ml-2" />
+          </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
@@ -112,14 +136,6 @@ export const InputForm: React.FC<InputFormProps> = ({ onSubmit, isLoading, perso
                         <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                 </select>
-                <button 
-                    type="button"
-                    onClick={onOpenSettings}
-                    className="px-3 py-2 border border-slate-300 rounded-lg bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-indigo-600 transition-colors"
-                    title="Personas verwalten"
-                >
-                    <User className="w-5 h-5" />
-                </button>
             </div>
             {selectedPersonaId && (
                 <p className="mt-2 text-xs text-slate-500 italic bg-slate-50 p-2 rounded border border-slate-100">

@@ -1,4 +1,12 @@
-import { Persona, PromptConfig } from "../types";
+import { Persona, PromptConfig, UserProfile } from "../types";
+
+export const DEFAULT_USER_PROFILE: UserProfile = {
+  name: "",
+  business: "",
+  offer: "",
+  usp: "",
+  writingStyle: ""
+};
 
 export const DEFAULT_PERSONAS: Persona[] = [
   {

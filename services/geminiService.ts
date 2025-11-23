@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { BriefingData, GenerationResponse, PromptConfig } from "../types";
+import { BriefingData, GenerationResponse, PromptConfig, UserProfile } from "../types";
 
 const responseSchema: Schema = {
   type: Type.OBJECT,
@@ -83,8 +83,6 @@ const responseSchema: Schema = {
 
 // Helper to safely get the API key without crashing the app on load if process is undefined
 const getApiKey = () => {
-  // In a real build environment, process.env is replaced. 
-  // In a raw browser environment, we need to be careful.
   try {
     return process.env.API_KEY;
   } catch (e) {
@@ -93,12 +91,18 @@ const getApiKey = () => {
   }
 };
 
-export const generateSocialContent = async (briefing: BriefingData, promptConfig: PromptConfig): Promise<GenerationResponse> => {
+export const generateSocialContent = async (briefing: BriefingData, promptConfig: PromptConfig, userProfile: UserProfile): Promise<GenerationResponse> => {
   const ai = new GoogleGenAI({ apiKey: getApiKey() });
   
-  // Construct a modular prompt based on user settings
   const prompt = `
     ${promptConfig.global}
+
+    USER PROFILE (AUTHOR CONTEXT):
+    - Name/Brand: ${userProfile.name || "N/A"}
+    - Business/Industry: ${userProfile.business || "N/A"}
+    - Offer/Product: ${userProfile.offer || "N/A"}
+    - USP: ${userProfile.usp || "N/A"}
+    - Writing Style Preference: ${userProfile.writingStyle || "N/A"}
     
     INPUT DATA:
     - Topic: ${briefing.topic}
@@ -139,29 +143,41 @@ export const generateSocialContent = async (briefing: BriefingData, promptConfig
   }
 };
 
-export const generateAiImage = async (prompt: string): Promise<string> => {
+// Helper for single image generation
+const generateSingleImage = async (prompt: string, ai: GoogleGenAI): Promise<string> => {
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash-image',
+    contents: {
+      parts: [{ text: prompt }]
+    },
+  });
+
+  if (response.candidates && response.candidates[0].content.parts) {
+    for (const part of response.candidates[0].content.parts) {
+      if (part.inlineData) {
+        const base64EncodeString = part.inlineData.data;
+        return `data:image/png;base64,${base64EncodeString}`;
+      }
+    }
+  }
+  throw new Error("No image data found");
+};
+
+// Generates 4 images in parallel
+export const generateAiImages = async (prompt: string): Promise<string[]> => {
   const ai = new GoogleGenAI({ apiKey: getApiKey() });
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
-      contents: {
-        parts: [{ text: prompt }]
-      },
-      // No responseMimeType for image generation
-    });
+    // Fire 4 requests in parallel to get variations
+    const promises = [
+      generateSingleImage(prompt, ai),
+      generateSingleImage(prompt + " ", ai), // Slight variation to ensure different seed usage if backend caches
+      generateSingleImage(prompt + "  ", ai),
+      generateSingleImage(prompt + "   ", ai)
+    ];
 
-    // Iterate through parts to find the image
-    if (response.candidates && response.candidates[0].content.parts) {
-      for (const part of response.candidates[0].content.parts) {
-        if (part.inlineData) {
-          const base64EncodeString = part.inlineData.data;
-          return `data:image/png;base64,${base64EncodeString}`;
-        }
-      }
-    }
-    
-    throw new Error("No image data found in response");
+    const results = await Promise.all(promises);
+    return results;
   } catch (error) {
     console.error("Gemini Image Gen Error:", error);
     throw error;

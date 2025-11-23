@@ -19,10 +19,12 @@ export interface GeneratedContent {
   title: string;
   content: string;
   visualPrompt?: string;
-  imageUrl?: string; // New field for image data (base64 or url)
+  imageUrl?: string; // The currently selected image
+  imageCandidates?: string[]; // Array of alternative generated images
   hashtags?: string[];
   status: ContentStatus;
   scheduledDate?: string | null;
+  scheduledTime?: string; // e.g. "14:00"
 }
 
 export interface BriefingData {
@@ -36,6 +38,14 @@ export interface Persona {
   id: string;
   name: string;
   description: string;
+}
+
+export interface UserProfile {
+  name: string;
+  business: string;
+  offer: string;
+  usp: string;
+  writingStyle: string;
 }
 
 export interface PromptConfig {
