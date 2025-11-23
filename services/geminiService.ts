@@ -1,8 +1,6 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { BriefingData, GenerationResponse, PromptConfig } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 const responseSchema: Schema = {
   type: Type.OBJECT,
   properties: {
@@ -83,7 +81,20 @@ const responseSchema: Schema = {
   ],
 };
 
+// Helper to safely get the API key without crashing the app on load if process is undefined
+const getApiKey = () => {
+  // In a real build environment, process.env is replaced. 
+  // In a raw browser environment, we need to be careful.
+  try {
+    return process.env.API_KEY;
+  } catch (e) {
+    console.warn("API Key not found or process not defined");
+    return undefined;
+  }
+};
+
 export const generateSocialContent = async (briefing: BriefingData, promptConfig: PromptConfig): Promise<GenerationResponse> => {
+  const ai = new GoogleGenAI({ apiKey: getApiKey() });
   
   // Construct a modular prompt based on user settings
   const prompt = `
@@ -129,6 +140,8 @@ export const generateSocialContent = async (briefing: BriefingData, promptConfig
 };
 
 export const generateAiImage = async (prompt: string): Promise<string> => {
+  const ai = new GoogleGenAI({ apiKey: getApiKey() });
+
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
