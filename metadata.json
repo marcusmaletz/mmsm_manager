@@ -1,0 +1,5 @@
+{
+  "name": "SocialMultiPlier",
+  "description": "A content repurposing engine powered by Gemini to generate multi-platform social media assets from a single prompt.",
+  "requestFramePermissions": []
+}
