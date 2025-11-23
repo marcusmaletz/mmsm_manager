@@ -1,3 +1,4 @@
+
 export type Platform = 
   | 'instagram_feed'
   | 'linkedin'
@@ -67,4 +68,9 @@ export interface GenerationResponse {
   instagram_story: { sequences: string[] };
   reels_shorts: { script_table: Array<{ visual: string; audio: string }> };
   youtube_video: { title_ideas: string[]; outline: string[] };
+}
+
+export interface AutomationConfig {
+  webhookUrl: string;
+  secretToken?: string; // Optional security header
 }

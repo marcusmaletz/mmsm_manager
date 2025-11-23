@@ -1,12 +1,13 @@
+
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { InputForm } from './components/InputForm';
 import { ContentCard } from './components/ContentCard';
 import { CalendarView } from './components/CalendarView';
 import { SettingsView } from './components/SettingsView';
-import { BriefingData, GeneratedContent, ContentStatus, Persona, PromptConfig, UserProfile } from './types';
+import { BriefingData, GeneratedContent, ContentStatus, Persona, PromptConfig, UserProfile, AutomationConfig } from './types';
 import { generateSocialContent, generateAiImages } from './services/geminiService';
-import { DEFAULT_PERSONAS, DEFAULT_PROMPTS, DEFAULT_USER_PROFILE } from './services/defaults';
+import { DEFAULT_PERSONAS, DEFAULT_PROMPTS, DEFAULT_USER_PROFILE, DEFAULT_AUTOMATION_CONFIG } from './services/defaults';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'calendar' | 'settings'>('dashboard');
@@ -16,59 +17,35 @@ const App: React.FC = () => {
   const [notification, setNotification] = useState<string | null>(null);
   const [globalClipboardImage, setGlobalClipboardImage] = useState<string | null>(null);
 
-  // Settings State with LocalStorage initialization - ROBUST ERROR HANDLING
-  const [personas, setPersonas] = useState<Persona[]>(() => {
-    try {
-      const saved = localStorage.getItem('sm_personas');
-      if (!saved) return DEFAULT_PERSONAS;
-      const parsed = JSON.parse(saved);
-      return Array.isArray(parsed) ? parsed : DEFAULT_PERSONAS;
-    } catch (e) {
-      console.warn("Error loading personas from storage, using default", e);
-      return DEFAULT_PERSONAS;
-    }
-  });
+  // --- SAFE INITIALIZATION WRAPPER ---
+  const loadFromStorage = <T,>(key: string, defaultValue: T): T => {
+      try {
+          const saved = localStorage.getItem(key);
+          if (!saved) return defaultValue;
+          const parsed = JSON.parse(saved);
+          // If it's an object, merge with default to ensure no missing keys
+          if (typeof defaultValue === 'object' && defaultValue !== null && !Array.isArray(defaultValue)) {
+              return { ...defaultValue, ...parsed };
+          }
+          return parsed;
+      } catch (e) {
+          console.error(`Failed to load ${key}`, e);
+          return defaultValue;
+      }
+  };
 
-  const [promptConfig, setPromptConfig] = useState<PromptConfig>(() => {
-    try {
-      const saved = localStorage.getItem('sm_prompts');
-      if (!saved) return DEFAULT_PROMPTS;
-      const parsed = JSON.parse(saved);
-      // Merge with defaults to ensure new keys exist if structure changed
-      return { ...DEFAULT_PROMPTS, ...parsed };
-    } catch (e) {
-      console.warn("Error loading prompts from storage, using default", e);
-      return DEFAULT_PROMPTS;
-    }
-  });
-
-  const [userProfile, setUserProfile] = useState<UserProfile>(() => {
-    try {
-      const saved = localStorage.getItem('sm_user_profile');
-      if (!saved) return DEFAULT_USER_PROFILE;
-      const parsed = JSON.parse(saved);
-      return { ...DEFAULT_USER_PROFILE, ...parsed };
-    } catch (e) {
-      console.warn("Error loading user profile from storage, using default", e);
-      return DEFAULT_USER_PROFILE;
-    }
-  });
+  const [personas, setPersonas] = useState<Persona[]>(() => loadFromStorage('sm_personas', DEFAULT_PERSONAS));
+  const [promptConfig, setPromptConfig] = useState<PromptConfig>(() => loadFromStorage('sm_prompts', DEFAULT_PROMPTS));
+  const [userProfile, setUserProfile] = useState<UserProfile>(() => loadFromStorage('sm_user_profile', DEFAULT_USER_PROFILE));
+  const [automationConfig, setAutomationConfig] = useState<AutomationConfig>(() => loadFromStorage('sm_automation', DEFAULT_AUTOMATION_CONFIG));
 
   // Persistence Effects
-  useEffect(() => {
-    localStorage.setItem('sm_personas', JSON.stringify(personas));
-  }, [personas]);
-
-  useEffect(() => {
-    localStorage.setItem('sm_prompts', JSON.stringify(promptConfig));
-  }, [promptConfig]);
-
-  useEffect(() => {
-    localStorage.setItem('sm_user_profile', JSON.stringify(userProfile));
-  }, [userProfile]);
+  useEffect(() => { localStorage.setItem('sm_personas', JSON.stringify(personas)); }, [personas]);
+  useEffect(() => { localStorage.setItem('sm_prompts', JSON.stringify(promptConfig)); }, [promptConfig]);
+  useEffect(() => { localStorage.setItem('sm_user_profile', JSON.stringify(userProfile)); }, [userProfile]);
+  useEffect(() => { localStorage.setItem('sm_automation', JSON.stringify(automationConfig)); }, [automationConfig]);
 
 
-  // Show notification toast
   const showNotification = (msg: string, isError = false) => {
     setNotification(msg);
     setTimeout(() => setNotification(null), isError ? 5000 : 3000);
@@ -134,9 +111,9 @@ const App: React.FC = () => {
     } catch (error: any) {
       console.error(error);
       if (error.message?.includes('quota') || error.message?.includes('429')) {
-        showNotification("Limit erreicht: Das tägliche KI-Kontingent ist erschöpft. Bitte später erneut versuchen.", true);
+        showNotification("Limit erreicht: Das tägliche KI-Kontingent ist erschöpft.", true);
       } else {
-        showNotification("Fehler beim Generieren. Bitte versuchen Sie es erneut.", true);
+        showNotification("Fehler beim Generieren.", true);
       }
     } finally {
       setIsLoading(false);
@@ -150,13 +127,12 @@ const App: React.FC = () => {
           setGeneratedContent(prev => 
             prev.map(item => item.platform === platform ? { 
                 ...item, 
-                imageUrl: images[0], // Default to first image
+                imageUrl: images[0], 
                 imageCandidates: images 
             } : item)
           );
           showNotification("4 Bildvarianten erfolgreich erstellt!");
       } catch (error: any) {
-          console.error(error);
           if (error.message?.includes('quota') || error.message?.includes('429')) {
               showNotification("Fehler: Tägliches Bild-Limit (Quota) überschritten.", true);
           } else {
@@ -191,11 +167,67 @@ const App: React.FC = () => {
       );
   };
 
-  const handlePublish = () => {
-    setGeneratedContent(prev => 
-        prev.map(item => item.status === ContentStatus.Scheduled ? { ...item, status: ContentStatus.Published } : item)
-    );
-    showNotification("Alle geplanten Posts erfolgreich veröffentlicht! 🚀");
+  const handlePublish = async () => {
+    const scheduledItems = generatedContent.filter(item => item.status === ContentStatus.Scheduled);
+    
+    if (scheduledItems.length === 0) {
+        showNotification("Nichts zum Veröffentlichen (Status 'Geplant' erforderlich).", true);
+        return;
+    }
+
+    if (!automationConfig.webhookUrl) {
+        showNotification("Fehler: Keine n8n Webhook URL in den Einstellungen hinterlegt!", true);
+        setActiveTab('settings');
+        return;
+    }
+
+    let successCount = 0;
+    let failCount = 0;
+
+    showNotification("Sende Daten an n8n...", false);
+
+    for (const item of scheduledItems) {
+        try {
+            // Send REAL HTTP Request to n8n Webhook
+            const response = await fetch(automationConfig.webhookUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(automationConfig.secretToken ? { 'x-auth-token': automationConfig.secretToken } : {})
+                },
+                body: JSON.stringify({
+                    platform: item.platform,
+                    content: item.content,
+                    title: item.title,
+                    image: item.imageUrl || null,
+                    scheduledTime: `${item.scheduledDate}T${item.scheduledTime || '10:00:00'}`,
+                    status: 'PUBLISH_REQUEST'
+                })
+            });
+
+            if (response.ok) {
+                successCount++;
+                // Update local status to Published
+                setGeneratedContent(prev => 
+                    prev.map(c => c.platform === item.platform ? { ...c, status: ContentStatus.Published } : c)
+                );
+            } else {
+                failCount++;
+                console.error(`Failed to publish ${item.platform}`, await response.text());
+            }
+
+        } catch (error) {
+            failCount++;
+            console.error("Webhook Error", error);
+        }
+    }
+
+    if (successCount > 0) {
+        showNotification(`${successCount} Posts erfolgreich an n8n gesendet! 🚀`);
+    }
+    if (failCount > 0) {
+        setTimeout(() => showNotification(`Warnung: ${failCount} Posts konnten nicht gesendet werden. Prüfe Webhook.`, true), 2000);
+    }
   };
 
   return (
@@ -204,9 +236,8 @@ const App: React.FC = () => {
       
       <main className="ml-0 lg:ml-64 p-4 lg:p-8 pt-20 lg:pt-8 transition-all duration-300">
         
-        {/* Notifications */}
         {notification && (
-          <div className={`fixed top-4 right-4 z-[100] px-6 py-3 rounded-lg shadow-xl text-white font-medium transform transition-all animate-fade-in-up ${notification.includes('Fehler') || notification.includes('Limit') ? 'bg-red-500' : 'bg-green-600'}`}>
+          <div className={`fixed top-4 right-4 z-[100] px-6 py-3 rounded-lg shadow-xl text-white font-medium transform transition-all animate-fade-in-up ${notification.includes('Warnung') ? 'bg-orange-500' : notification.includes('Fehler') || notification.includes('Limit') ? 'bg-red-500' : 'bg-green-600'}`}>
             {notification}
           </div>
         )}
@@ -221,7 +252,6 @@ const App: React.FC = () => {
                userProfile={userProfile}
              />
 
-             {/* Content Grid */}
              {generatedContent.length > 0 && (
                <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
                  {generatedContent.map((item, index) => (
@@ -235,7 +265,7 @@ const App: React.FC = () => {
                      globalClipboardImage={globalClipboardImage}
                      onCopyImage={(url) => {
                          setGlobalClipboardImage(url);
-                         showNotification("Bild in Zwischenablage kopiert! Du kannst es jetzt in anderen Karten einfügen.");
+                         showNotification("Bild kopiert!");
                      }}
                    />
                  ))}
@@ -261,10 +291,9 @@ const App: React.FC = () => {
               prompts={promptConfig}
               onSavePrompts={setPromptConfig}
               userProfile={userProfile}
-              onSaveUserProfile={(profile) => {
-                  setUserProfile(profile);
-                  // Notification handled visually in component now
-              }}
+              onSaveUserProfile={setUserProfile}
+              automationConfig={automationConfig}
+              onSaveAutomation={setAutomationConfig}
             />
           </div>
         )}

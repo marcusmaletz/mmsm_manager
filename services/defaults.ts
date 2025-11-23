@@ -1,4 +1,5 @@
-import { Persona, PromptConfig, UserProfile } from "../types";
+
+import { Persona, PromptConfig, UserProfile, AutomationConfig } from "../types";
 
 export const DEFAULT_USER_PROFILE: UserProfile = {
   name: "",
@@ -6,6 +7,10 @@ export const DEFAULT_USER_PROFILE: UserProfile = {
   offer: "",
   usp: "",
   writingStyle: ""
+};
+
+export const DEFAULT_AUTOMATION_CONFIG: AutomationConfig = {
+  webhookUrl: ""
 };
 
 export const DEFAULT_PERSONAS: Persona[] = [
