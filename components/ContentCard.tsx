@@ -1,6 +1,7 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { GeneratedContent, ContentStatus } from '../types';
-import { Copy, Smartphone, Check, Clock, Save, XCircle, Image as ImageIcon, Upload, Sparkles, Loader2, Maximize2, X, ChevronLeft, ChevronRight, PenLine, RefreshCw, ClipboardCopy, ClipboardPaste, Move, Download } from 'lucide-react';
+import { Copy, Smartphone, Check, Clock, Save, XCircle, Image as ImageIcon, Upload, Sparkles, Loader2, Maximize2, X, ChevronLeft, ChevronRight, PenLine, RefreshCw, ClipboardCopy, ClipboardPaste, Move, Download, Send } from 'lucide-react';
 import { PlatformPreview } from './PlatformPreview';
 
 interface ContentCardProps {
@@ -11,6 +12,7 @@ interface ContentCardProps {
   isGeneratingImage: boolean;
   globalClipboardImage?: string | null;
   onCopyImage?: (url: string) => void;
+  onPublishNow: () => void;
 }
 
 export const ContentCard: React.FC<ContentCardProps> = ({ 
@@ -20,7 +22,8 @@ export const ContentCard: React.FC<ContentCardProps> = ({
     onGenerateImage, 
     isGeneratingImage,
     globalClipboardImage,
-    onCopyImage 
+    onCopyImage,
+    onPublishNow
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState(data.content);
@@ -434,14 +437,25 @@ export const ContentCard: React.FC<ContentCardProps> = ({
                         </button>
                     </>
                 ) : (
-                    data.status === ContentStatus.Draft && (
-                        <button 
-                            onClick={() => onApprove(data.platform)}
-                            className="px-5 py-2 bg-white border border-green-200 text-green-700 hover:bg-green-50 hover:border-green-300 text-xs font-bold rounded-lg shadow-sm hover:shadow transition-all flex items-center gap-2"
-                        >
-                            <Check className="w-3 h-3" /> Genehmigen
-                        </button>
-                    )
+                    <>
+                        {data.status === ContentStatus.Draft && (
+                            <button 
+                                onClick={() => onApprove(data.platform)}
+                                className="px-5 py-2 bg-white border border-green-200 text-green-700 hover:bg-green-50 hover:border-green-300 text-xs font-bold rounded-lg shadow-sm hover:shadow transition-all flex items-center gap-2"
+                            >
+                                <Check className="w-3 h-3" /> Genehmigen
+                            </button>
+                        )}
+                        {(data.status === ContentStatus.Approved || data.status === ContentStatus.Scheduled) && (
+                            <button 
+                                onClick={onPublishNow}
+                                className="px-5 py-2 bg-slate-900 text-white hover:bg-slate-800 text-xs font-bold rounded-lg shadow-sm hover:shadow transition-all flex items-center gap-2"
+                                title="Ohne Kalender sofort an n8n senden"
+                            >
+                                <Send className="w-3 h-3" /> Sofort posten
+                            </button>
+                        )}
+                    </>
                 )}
             </div>
         </div>

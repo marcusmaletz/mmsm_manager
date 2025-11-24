@@ -36,8 +36,27 @@ const App: React.FC = () => {
 
   const [personas, setPersonas] = useState<Persona[]>(() => loadFromStorage('sm_personas', DEFAULT_PERSONAS));
   const [promptConfig, setPromptConfig] = useState<PromptConfig>(() => loadFromStorage('sm_prompts', DEFAULT_PROMPTS));
-  const [userProfile, setUserProfile] = useState<UserProfile>(() => loadFromStorage('sm_user_profile', DEFAULT_USER_PROFILE));
-  const [automationConfig, setAutomationConfig] = useState<AutomationConfig>(() => loadFromStorage('sm_automation', DEFAULT_AUTOMATION_CONFIG));
+  
+  // Initialize User Profile with a fallback to Hardcoded Defaults if storage has empty strings
+  const [userProfile, setUserProfile] = useState<UserProfile>(() => {
+      const loaded = loadFromStorage('sm_user_profile', DEFAULT_USER_PROFILE);
+      return {
+          ...loaded,
+          // Force hardcoded defaults if the loaded value is empty (fixes issue where empty string was saved)
+          name: loaded.name || DEFAULT_USER_PROFILE.name,
+          usp: loaded.usp || DEFAULT_USER_PROFILE.usp,
+          writingStyle: loaded.writingStyle || DEFAULT_USER_PROFILE.writingStyle
+      };
+  });
+  
+  const [automationConfig, setAutomationConfig] = useState<AutomationConfig>(() => {
+      const loaded = loadFromStorage('sm_automation', DEFAULT_AUTOMATION_CONFIG);
+      return {
+          ...loaded,
+          // Force hardcoded defaults if the loaded value is empty
+          webhookUrl: loaded.webhookUrl || DEFAULT_AUTOMATION_CONFIG.webhookUrl
+      };
+  });
 
   // Persistence Effects
   useEffect(() => { localStorage.setItem('sm_personas', JSON.stringify(personas)); }, [personas]);
@@ -167,6 +186,50 @@ const App: React.FC = () => {
       );
   };
 
+  const handlePublishSingle = async (platform: string) => {
+      const item = generatedContent.find(c => c.platform === platform);
+      if (!item) return;
+
+      if (!automationConfig.webhookUrl) {
+          showNotification("Fehler: Keine Webhook URL in den Einstellungen!", true);
+          setActiveTab('settings');
+          return;
+      }
+
+      showNotification(`Sende ${item.platform.replace('_', ' ')} an n8n...`, false);
+
+      try {
+          const response = await fetch(automationConfig.webhookUrl, {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+                  ...(automationConfig.secretToken ? { 'x-auth-token': automationConfig.secretToken } : {})
+              },
+              body: JSON.stringify({
+                  platform: item.platform,
+                  content: item.content,
+                  title: item.title,
+                  image: item.imageUrl || null,
+                  scheduledTime: item.scheduledDate ? `${item.scheduledDate}T${item.scheduledTime || '10:00:00'}` : 'IMMEDIATE',
+                  status: 'PUBLISH_IMMEDIATE'
+              })
+          });
+
+          if (response.ok) {
+              setGeneratedContent(prev => 
+                  prev.map(c => c.platform === platform ? { ...c, status: ContentStatus.Published } : c)
+              );
+              showNotification("Erfolgreich gesendet! 🚀");
+          } else {
+              showNotification("Fehler beim Senden an Webhook.", true);
+              console.error(await response.text());
+          }
+      } catch (error) {
+          console.error(error);
+          showNotification("Verbindungsfehler zum Webhook.", true);
+      }
+  };
+
   const handlePublish = async () => {
     const scheduledItems = generatedContent.filter(item => item.status === ContentStatus.Scheduled);
     
@@ -267,6 +330,7 @@ const App: React.FC = () => {
                          setGlobalClipboardImage(url);
                          showNotification("Bild kopiert!");
                      }}
+                     onPublishNow={() => handlePublishSingle(item.platform)}
                    />
                  ))}
                </div>

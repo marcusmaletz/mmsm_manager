@@ -2,15 +2,15 @@
 import { Persona, PromptConfig, UserProfile, AutomationConfig } from "../types";
 
 export const DEFAULT_USER_PROFILE: UserProfile = {
-  name: "",
-  business: "",
+  name: "Marcus Maletz",
+  business: "", 
   offer: "",
-  usp: "",
-  writingStyle: ""
+  usp: "Komponist & Texter, Musiker, KI-Experte, Audioproduzent, Sprecher, Hobbyfotograf",
+  writingStyle: "Mit klugem Wortwitz"
 };
 
 export const DEFAULT_AUTOMATION_CONFIG: AutomationConfig = {
-  webhookUrl: ""
+  webhookUrl: "https://anymal.app.n8n.cloud/webhook/mmsmmanager"
 };
 
 export const DEFAULT_PERSONAS: Persona[] = [
